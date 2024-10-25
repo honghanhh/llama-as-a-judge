@@ -4,9 +4,117 @@ from copy import deepcopy
 
 from transformers.models.llama.modeling_llama import *
 from transformers.modeling_outputs import TokenClassifierOutput
-
+import torch.nn as nn
+import torch
 
 _CONFIG_FOR_DOC = "LlamaConfig"
+
+
+class MoELayer(nn.Module):
+    def __init__(self, input_size, output_size, num_experts, hidden_size):
+        super().__init__()
+        self.num_experts = num_experts
+        self.gate = nn.Linear(input_size, num_experts)
+        self.experts = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(input_size, hidden_size),
+                nn.ReLU(),
+                nn.Linear(hidden_size, output_size)
+            ) for _ in range(num_experts)
+        ])
+
+    def forward(self, x):
+        gate_outputs = torch.softmax(self.gate(x), dim=-1)
+        expert_outputs = torch.stack([expert(x) for expert in self.experts])
+        output = torch.sum(gate_outputs.unsqueeze(-1) * expert_outputs, dim=0)
+        return output
+class CustomLlamaForSequenceClassification(LlamaPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.model = LlamaModel(config)
+        
+        # Replace simple linear layer with MoE
+        self.moe_classifier = MoELayer(
+            input_size=config.hidden_size,
+            output_size=self.num_labels,
+            num_experts=16,
+            hidden_size=config.hidden_size // 4
+        )
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        position_ids=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        labels=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+
+        hidden_states = outputs[0]
+        
+        # Use the last token's representation for classification
+        last_hidden_state = hidden_states[:, -1, :]
+        
+        # Apply MoE classifier
+        logits = self.moe_classifier(last_hidden_state)
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type is None:
+                if self.num_labels == 1:
+                    self.config.problem_type = "regression"
+                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                    self.config.problem_type = "single_label_classification"
+                else:
+                    self.config.problem_type = "multi_label_classification"
+
+            if self.config.problem_type == "regression":
+                loss_fct = nn.MSELoss()
+                if self.num_labels == 1:
+                    loss = loss_fct(logits.squeeze(), labels.squeeze())
+                else:
+                    loss = loss_fct(logits, labels)
+            elif self.config.problem_type == "single_label_classification":
+                loss_fct = nn.CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            elif self.config.problem_type == "multi_label_classification":
+                loss_fct = nn.BCEWithLogitsLoss()
+                loss = loss_fct(logits, labels)
+
+        if not return_dict:
+            output = (logits,) + outputs[1:]
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutputWithPast(
+            loss=loss,
+            logits=logits,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
+
 
 
 # Copied from transformers.models.bart.modeling_bart._make_causal_mask
@@ -56,7 +164,7 @@ class UnmaskingLlamaModel(LlamaPreTrainedModel):
         self.vocab_size = config.vocab_size
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
-        self.layers = nn.ModuleList([LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList([LlamaDecoderLayer(config, layer_idx=i) for i in range(config.num_hidden_layers)])
         self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
         self.gradient_checkpointing = False
