@@ -122,8 +122,8 @@ print('predictions')
 predictions = trainer.predict(tokenized_ds[dev_name])
 
 # Save the predictions to a file
-convert_dataset_name= '_'.join(dataset.split('/'))
-with open(f"{convert_dataset_name}_{model_size}_dev_predictions.json", "w") as f:
+#convert_dataset_name= '_'.join(dataset.split('/'))
+with open(f"multi_{model_size}_dev_predictions.json", "w") as f:
     json.dump(predictions.predictions.tolist(), f)
 
 # # Predictions on the test set
