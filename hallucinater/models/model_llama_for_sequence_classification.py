@@ -14,6 +14,12 @@ def llama_for_sequence_clasification(config, peft_config):
     label2id = {v: k for k, v in id2label.items()}
     
     # Load the model for sequence classification
+    # if finetuning model is availabel
+    if config['trained_model_path']:
+        print(f"Load pretrained weighted from {config['trained_model_path']}")
+        model = LlamaForSequenceClassification.from_pretrained(config['trained_model_path'], num_labels=len(label2id), id2label=id2label, label2id=label2id
+    )
+        return model, tokenizer
     model = LlamaForSequenceClassification.from_pretrained(
         model_id, num_labels=len(id2label), id2label=id2label, label2id=label2id
     ).bfloat16()  # Adjust precision here based on your needs
