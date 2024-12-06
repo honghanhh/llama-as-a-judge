@@ -1,1 +1,2 @@
-python llama_seq_clf.py Jinyan1/COLING_2025_MGT_en 7b MGT_en_llama_7b
+#!/bin/bash
+python3 hallucinater/train/main.py
