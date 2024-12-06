@@ -1,0 +1,15 @@
+#default parameters
+dataset: "Jinyan1/COLING_2025_MGT_en"
+outdir: "Out"
+epochs: 1
+batch_size: 1
+learning_rate: 5e-5
+lora_r: 12
+max_length: 128
+model_name: "llama"
+model_size: "7b"
+lora_alpha: 32
+lora_dropout: 0.1
+id2label:
+  0: "human"
+  1: "machine"
