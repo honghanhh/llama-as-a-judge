@@ -11,3 +11,4 @@ sentence-transformers==3.2.1
 transformers==4.45.1
 pytorch-lightning==2.4.0
 BiLLM==0.1.6
+pyyaml
