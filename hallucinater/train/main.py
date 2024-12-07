@@ -2,13 +2,10 @@
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import sys
-import yaml
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))) 
-
+import yaml
 import evaluate
-import json
 import numpy as np
-import torch
 from utils import load_task, preprocess_function, compute_metrics
 from hallucinater.models import load_model
 from transformers import AutoTokenizer

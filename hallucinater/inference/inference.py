@@ -4,12 +4,10 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))) 
 import yaml
 import numpy as np
-import torch
 import pandas as pd
 from hallucinater.train.utils import load_task, preprocess_function, compute_metrics, load_dataset_from_json_file
 from hallucinater.models import load_model
 from transformers import Trainer, DataCollatorWithPadding
-
 from pytorch_lightning import seed_everything
 
 
